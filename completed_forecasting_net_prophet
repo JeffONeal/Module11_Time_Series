@@ -1,0 +1,243 @@
+# Install the required libraries
+!pip install pystan
+!pip install prophet
+!pip install hvplot
+!pip install holoviews
+
+# Import the required libraries and dependencies
+import pandas as pd
+import holoviews as hv
+from prophet import Prophet
+import hvplot.pandas
+import numpy as np
+import datetime as dt
+%matplotlib inline
+
+# Upload the "google_hourly_search_trends.csv" file into Colab, then store in a Pandas DataFrame
+# Set the "Date" column as the Datetime Index.
+
+from google.colab import files
+uploaded = files.upload()
+
+df_mercado_trends = pd.read_csv("google_hourly_search_trends.csv",
+                                index_col="Date",
+                                infer_datetime_format=True,
+                                parse_dates=True
+                                )
+
+# Review the first and last five rows of the DataFrame
+display(df_mercado_trends.head())
+display(df_mercado_trends.tail())
+
+# Review the data types of the DataFrame using the info function
+df_mercado_trends.dtypes
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# Slice the DataFrame to just the month of May 2020
+df_may_2020 = df_mercado_trends.loc["2020-05-01" : "2020-05-30"]
+
+# Use hvPlot to visualize the data for May 2020
+df_may_2020.plot()
+
+# Calculate the sum of the total search traffic for May 2020
+traffic_may_2020 = df_may_2020.sum()
+
+# View the traffic_may_2020 value
+traffic_may_2020
+
+# Calcluate the monhtly median search traffic across all months 
+# Group the DataFrame by index year and then index month, chain the sum and then the median functions
+median_monthly_traffic = df_mercado_trends.groupby(by=[df_mercado_trends.index.year, df_mercado_trends.index.month]).sum().median()
+
+# View the median_monthly_traffic value
+median_monthly_traffic
+
+# Compare the seach traffic for the month of May 2020 to the overall monthly median value
+traffic_may_2020/median_monthly_traffic
+
+**Question:** Did the Google search traffic increase during the month that MercadoLibre released its financial results?
+
+**Answer:** Yes, the traffic for the month of May 2020 was approximately 5% greater than average. 
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# Group the hourly search data to plot (use hvPlot) the average traffic by the day of week 
+df_mercado_trends.groupby(df_mercado_trends.index.dayofweek).mean().hvplot()
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# Use hvPlot to visualize the hour of the day and day of week search traffic as a heatmap.
+df_mercado_trends.hvplot.heatmap(x='index.hour',
+                                 y='index.dayofweek',
+                                 C='Search Trends').aggregate(function=np.mean)
+
+**Question:** Does any day-of-week effect that you observe concentrate in just a few hours of that day?
+
+**Answer:** # It appears that most days of the weeks follow a similar trend but the results on the 5th and 6th day of the week appear to show less traffic that days 0-4. 
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# Group the hourly search data to plot (use hvPlot) the average traffic by the week of the year
+df_mercado_trends.groupby(df_mercado_trends.index.isocalendar().week).mean().hvplot()
+
+**Question:** Does the search traffic tend to increase during the winter holiday period (weeks 40 through 52)?
+
+**Answer:** In the weeks leading up to the end of the year the general pattern does appear to start increasing between weeks 40 and 52.  We see a bit of a dip right before week 40 and it generally builds up until week 52 when there is another sharp decline in search history. 
+
+# Upload the "mercado_stock_price.csv" file into Colab, then store in a Pandas DataFrame
+# Set the "date" column as the Datetime Index.
+from google.colab import files
+uploaded = files.upload()
+
+df_mercado_stock = pd.read_csv("mercado_stock_price.csv",
+                                index_col="date",
+                                infer_datetime_format=True,
+                                parse_dates=True
+                                )
+
+# View the first and last five rows of the DataFrame
+display(df_mercado_stock.head())
+display(df_mercado_stock.tail())
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# Use hvPlot to visualize the closing price of the df_mercado_stock DataFrame
+df_mercado_stock['close'].hvplot()
+
+# Concatenate the df_mercado_stock DataFrame with the df_mercado_trends DataFrame
+# Concatenate the DataFrame by columns (axis=1), and drop and rows with only one column of data
+mercado_stock_trends_df = pd.concat([df_mercado_stock, df_mercado_trends], axis=1).dropna()
+
+# View the first and last five rows of the DataFrame
+display(mercado_stock_trends_df.head())
+display(mercado_stock_trends_df.tail())
+
+# For the combined dataframe, slice to just the first half of 2020 (2020-01 through 2020-06) 
+first_half_2020 = mercado_stock_trends_df['2020-01':'2020-06']
+
+# View the first and last five rows of first_half_2020 DataFrame
+display(first_half_2020.head())
+display(first_half_2020.tail())
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# Use hvPlot to visualize the close and Search Trends data
+# Plot each column on a separate axes using the following syntax
+# `hvplot(shared_axes=False, subplots=True).cols(1)`
+first_half_2020.hvplot(shared_axes=False, subplots=True).cols(1)
+
+
+**Question:** Do both time series indicate a common trend that’s consistent with this narrative?
+
+**Answer:** Yes, there is a consistent nature to the trend and the results.  We see a big spike in early May in search traffic which also leads to a jump in stock price and the continued growth in stock price makes sense considering the world events taking place at that time. 
+
+# Create a new column in the mercado_stock_trends_df DataFrame called Lagged Search Trends
+# This column should shift the Search Trends information by one hour
+mercado_stock_trends_df['Lagged Search Trends'] = mercado_stock_trends_df['Search Trends'].shift(1)
+
+# Create a new column in the mercado_stock_trends_df DataFrame called Stock Volatility
+# This column should calculate the standard deviation of the closing stock price return data over a 4 period rolling window
+mercado_stock_trends_df['Stock Volatility'] = mercado_stock_trends_df['close'].pct_change().rolling(window=4).std()
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# Use hvPlot to visualize the stock volatility
+mercado_stock_trends_df['Stock Volatility'].hvplot()
+
+# Create a new column in the mercado_stock_trends_df DataFrame called Hourly Stock Return
+# This column should calculate hourly return percentage of the closing price
+mercado_stock_trends_df['Hourly Stock Return'] = mercado_stock_trends_df['close'].pct_change()
+
+# View the first and last five rows of the mercado_stock_trends_df DataFrame
+display(mercado_stock_trends_df.head())
+display(mercado_stock_trends_df.tail())
+
+# Construct correlation table of Stock Volatility, Lagged Search Trends, and Hourly Stock Return
+mercado_stock_trends_df[['Stock Volatility', 'Lagged Search Trends', 'Hourly Stock Return']].corr()
+
+**Question:** Does a predictable relationship exist between the lagged search traffic and the stock volatility or between the lagged search traffic and the stock price returns?
+
+**Answer:** The correllation between these three variables is not very strong.  It would be difficult to project stock returns using this data based on what this correlation table outlines to us. 
+
+# Using the df_mercado_trends DataFrame, reset the index so the date information is no longer the index
+mercado_prophet_df = df_mercado_trends.reset_index()
+
+# Label the columns ds and y so that the syntax is recognized by Prophet
+mercado_prophet_df.columns = ['ds', 'y']
+
+# Drop an NaN values from the prophet_df DataFrame
+mercado_prophet_df = mercado_prophet_df.dropna()
+
+# View the first and last five rows of the mercado_prophet_df DataFrame
+display(mercado_prophet_df.head())
+display(mercado_prophet_df.tail())
+
+# Call the Prophet function, store as an object
+model_mercado_trends = Prophet()
+model_mercado_trends
+
+# Fit the time-series model.
+model_mercado_trends.fit(mercado_prophet_df)
+
+# Create a future dataframe to hold predictions
+# Make the prediction go out as far as 2000 hours (approx 80 days)
+future_mercado_trends = model_mercado_trends.make_future_dataframe(periods=2000,freq='H')
+
+# View the last five rows of the future_mercado_trends DataFrame
+display(future_mercado_trends.tail())
+
+# Make the predictions for the trend data using the future_mercado_trends DataFrame
+forecast_mercado_trends = model_mercado_trends.predict(future_mercado_trends)
+
+# Display the first five rows of the forecast_mercado_trends DataFrame
+forecast_mercado_trends.head()
+
+# Plot the Prophet predictions for the Mercado trends data
+model_mercado_trends.plot(forecast_mercado_trends)
+
+**Question:**  How's the near-term forecast for the popularity of MercadoLibre?
+
+**Answer:** The prediction graph shows a slight decrease in popularity is coming for MercadoLibre. 
+
+
+# Set the index in the forecast_mercado_trends DataFrame to the ds datetime column
+forecast_mercado_trends = forecast_mercado_trends.set_index('ds')
+
+# View the only the yhat,yhat_lower and yhat_upper columns from the DataFrame
+forecast_mercado_trends[['yhat', 'yhat_lower', 'yhat_upper']].head()
+
+# Holoviews extension to render hvPlots in Colab
+hv.extension('bokeh')
+
+# From the forecast_mercado_trends DataFrame, use hvPlot to visualize
+#  the yhat, yhat_lower, and yhat_upper columns over the last 2000 hours 
+forecast_mercado_trends[['yhat', 'yhat_lower', 'yhat_upper']].iloc[-2000:,:].hvplot()
+
+
+# Reset the index in the forecast_mercado_trends DataFrame
+forecast_mercado_trends = forecast_mercado_trends.reset_index()
+
+# Use the plot_components function to visualize the forecast results 
+# for the forecast_canada DataFrame 
+figures_mercado_trends = model_mercado_trends.plot_components(forecast_mercado_trends)
+
+
+**Question:** What time of day exhibits the greatest popularity?
+
+**Answer:** Traffic begins to pick up around 20:00 and begins to fall again around 1:00. 
+
+**Question:** Which day of week gets the most search traffic? 
+   
+**Answer:** Tuesday. 
+
+**Question:** What's the lowest point for search traffic in the calendar year?
+
+**Answer:** October. 
